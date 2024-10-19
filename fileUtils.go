@@ -4,22 +4,36 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 type FileInfo struct {
-	Path string
-	Size int64
+	Path    string
+	Size    int64
+	IsLink  bool
+	LinkDst string
 }
 
 func getFileInfo(path string) (FileInfo, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return FileInfo{}, err
 	}
-	return FileInfo{
+
+	fileInfo := FileInfo{
 		Path: path,
 		Size: info.Size(),
-	}, nil
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		fileInfo.IsLink = true
+		fileInfo.LinkDst, err = os.Readlink(path)
+		if err != nil {
+			return FileInfo{}, err
+		}
+	}
+
+	return fileInfo, nil
 }
 
 func areFilesIdentical(file1, file2 string) (bool, error) {
@@ -59,5 +73,29 @@ func areFilesIdentical(file1, file2 string) (bool, error) {
 		if n1 != n2 || !bytes.Equal(b1[:n1], b2[:n2]) {
 			return false, nil // Chunks are different
 		}
+	}
+}
+
+func resolveSymlink(path string) (string, error) {
+	for {
+		info, err := os.Lstat(path)
+		if err != nil {
+			return "", err
+		}
+
+		if info.Mode()&os.ModeSymlink == 0 {
+			return path, nil
+		}
+
+		linkDst, err := os.Readlink(path)
+		if err != nil {
+			return "", err
+		}
+
+		if !filepath.IsAbs(linkDst) {
+			linkDst = filepath.Join(filepath.Dir(path), linkDst)
+		}
+
+		path = linkDst
 	}
 }

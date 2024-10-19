@@ -10,9 +10,11 @@ import (
 )
 
 var minSize int64
+var followSymlinks bool
 
 func init() {
 	flag.Int64Var(&minSize, "minsize", 0, "Minimum file size to consider (in bytes)")
+	flag.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks when scanning")
 }
 
 func main() {
@@ -20,17 +22,19 @@ func main() {
 
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: ccdupe [--minsize=<size>] <directory>")
+		fmt.Println("Usage: ccdupe [--minsize=<size>] [--follow-symlinks] <directory>")
 		os.Exit(1)
 	}
 
 	dir := args[0]
 	files, err := scanDirectory(dir)
 	if err != nil {
+		LogError("Error scanning directory: %v", err)
 		fmt.Printf("Error scanning directory: %v\n", err)
 		os.Exit(1)
 	}
 
+	LogInfo("Scanned directory %s, found %d files", dir, len(files))
 	findDuplicates(files)
 }
 
@@ -38,16 +42,34 @@ func scanDirectory(dir string) ([]FileInfo, error) {
 	var files []FileInfo
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		println("Scanning directory...")
 		if err != nil {
+			LogError("Error accessing path %s: %v", path, err)
 			return err
 		}
-		if !info.IsDir() && info.Size() >= minSize {
+
+		if !info.IsDir() {
 			fileInfo, err := getFileInfo(path)
 			if err != nil {
+				LogError("Error getting file info for %s: %v", path, err)
 				return err
 			}
-			files = append(files, fileInfo)
+
+			if fileInfo.IsLink && followSymlinks {
+				resolvedPath, err := resolveSymlink(path)
+				if err != nil {
+					LogError("Error resolving symlink %s: %v", path, err)
+					return nil // Skip this symlink
+				}
+				fileInfo, err = getFileInfo(resolvedPath)
+				if err != nil {
+					LogError("Error getting file info for resolved symlink %s: %v", resolvedPath, err)
+					return nil // Skip this symlink
+				}
+			}
+
+			if fileInfo.Size >= minSize {
+				files = append(files, fileInfo)
+			}
 		}
 		return nil
 	})
@@ -61,6 +83,7 @@ func findDuplicates(files []FileInfo) {
 	for _, file := range files {
 		hash, err := calculateMD5(file.Path)
 		if err != nil {
+			LogError("Error calculating MD5 for %s: %v", file.Path, err)
 			fmt.Printf("Error calculating MD5 for %s: %v\n", file.Path, err)
 			continue
 		}
@@ -79,17 +102,21 @@ func confirmAndDeleteDuplicates(paths []string) {
 		for j := i + 1; j < len(paths); j++ {
 			identical, err := areFilesIdentical(paths[i], paths[j])
 			if err != nil {
+				LogError("Error comparing files %s and %s: %v", paths[i], paths[j], err)
 				fmt.Printf("Error comparing files %s and %s: %v\n", paths[i], paths[j], err)
 				continue
 			}
 			if identical {
+				LogInfo("Found duplicates: %s %s", paths[i], paths[j])
 				fmt.Printf("Duplicates: %s %s\n", paths[i], paths[j])
 				deleteFile := promptForDeletion(paths[i], paths[j])
 				if deleteFile != "" {
 					err := os.Remove(deleteFile)
 					if err != nil {
+						LogError("Error deleting file %s: %v", deleteFile, err)
 						fmt.Printf("Error deleting file %s: %v\n", deleteFile, err)
 					} else {
+						LogInfo("Deleted file: %s", deleteFile)
 						fmt.Printf("Deleted: %s\n", deleteFile)
 					}
 				}
