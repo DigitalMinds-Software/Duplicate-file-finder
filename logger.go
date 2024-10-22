@@ -32,6 +32,12 @@ func LogInfo(format string, v ...interface{}) {
 	}
 }
 
+func LogFatal(v ...any) {
+	if l := GetLogger(); l != nil {
+		l.Print(v...)
+	}
+}
+
 func LogError(format string, v ...interface{}) {
 	if l := GetLogger(); l != nil {
 		l.Printf("[ERROR] "+format, v...)

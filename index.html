@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="static/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Duplicate File Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#211A44',
+                        secondary: '#8A97FE',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- https://codepen.io/nikhil8krishnan/pen/rVoXJa -->
+    <style>
+        svg {
+            width: 50px;
+            height: 50px;
+            margin: 20px;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans">
+    <div class="flex h-screen">
+        <!-- Left Sidebar -->
+        <div class="w-64 bg-white shadow-md">
+            <div class="p-4">
+                <h1 class="text-2xl font-bold text-primary mb-4">DupeFinder</h1>
+                <button id="helpBtn"
+                    class="w-full bg-primary text-white py-2 px-4 rounded mb-2 hover:bg-primary-dark">Help</button>
+                <button id="clearBtn"
+                    class="w-full bg-secondary text-white py-2 px-4 rounded hover:bg-secondary-dark">Clear
+                    Output</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-8">
+            <!-- Input Area -->
+            <div class="bg-white shadow-md rounded-lg p-6 mb-6">
+                <div class="mb-4">
+                    <label for="directory" class="block text-sm font-medium text-gray-700 mb-2">Directory Path</label>
+                    <input type="text" id="directory"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
+                        placeholder="Enter directory path">
+                </div>
+                <div class="mb-4">
+                    <label for="minSize" class="block text-sm font-medium text-gray-700 mb-2">Minimum Size
+                        (bytes)</label>
+                    <input type="number" id="minSize"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50"
+                        placeholder="Enter minimum file size">
+                </div>
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="followSymlinks"
+                            class="rounded border-gray-300 text-primary focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50">
+                        <span class="ml-2 text-sm text-gray-700">Follow Symlinks</span>
+                    </label>
+                </div>
+                <button id="scanBtn"
+                    class="w-full bg-primary text-white py-2 px-4 rounded hover:bg-primary-dark">Scan</button>
+            </div>
+
+            <!-- Output Area -->
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-lg font-semibold mb-4">Output</h2>
+                <div id="output" class="h-64 overflow-y-auto bg-gray-100 p-4 rounded">
+                    <!-- Output content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialogs -->
+    <div id="deleteDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h2 class="text-lg font-semibold mb-4">Delete Duplicate File</h2>
+            <p id="deleteMessage" class="mb-4"></p>
+            <div class="flex justify-end">
+                <button id="cancelDelete"
+                    class="bg-gray-300 text-gray-800 py-2 px-4 rounded mr-2 hover:bg-gray-400">Cancel</button>
+                <button id="confirmDelete"
+                    class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="errorDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <h2 class="text-lg font-semibold mb-4">Error</h2>
+            <p id="errorMessage" class="mb-4"></p>
+            <div class="flex justify-end">
+                <button id="closeError"
+                    class="bg-primary text-white py-2 px-4 rounded hover:bg-primary-dark">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="infoDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-96">
+            <!-- <h2 class="text-lg font-semibold mb-4">Info</h2> -->
+            <p id="infoMessage" class="mb-4"></p>
+            <div class="flex justify-end">
+                <button id="closeInfo"
+                    class="bg-primary text-white py-2 px-4 rounded hover:bg-primary-dark">Close</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // JavaScript code for handling UI interactions and AJAX requests
+        document.addEventListener('DOMContentLoaded', () => {
+            const helpBtn = document.getElementById('helpBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const scanBtn = document.getElementById('scanBtn');
+            const output = document.getElementById('output');
+            const deleteDialog = document.getElementById('deleteDialog');
+            const errorDialog = document.getElementById('errorDialog');
+            const infoDialog = document.getElementById('infoDialog');
+
+            helpBtn.addEventListener('click', () => {
+                showInfo(`
+                <p> <p class="font-semibold">Help</> <br/> 
+                    <ul class="list-decimal"> 
+                        <li>Enter a directory path</li> 
+                        <li>Set the minimum file size (optional)</li> 
+                        <li>Check "Follow Symlinks" if needed</li> 
+                        <li>Click Scan to find duplicates</li> 
+                        <li>Review the results and choose files to delete</li> 
+                    </ul> 
+                </p>
+                `);
+            });
+
+            clearBtn.addEventListener('click', () => {
+                output.innerHTML = '';
+            });
+
+            scanBtn.addEventListener('click', () => {
+                const directory = document.getElementById('directory').value.trim();
+                const minSize = document.getElementById('minSize').value.trim();
+                const followSymlinks = document.getElementById('followSymlinks').checked;
+
+                if (!directory) {
+                    showError('Directory path is required');
+                    return;
+                }
+
+                output.innerHTML = `
+                <div class="flex items-center justify-center">
+                    <svg version="1.1" id="L1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 100 100" enable-background="new 0 0 100 100" xml:space="preserve">
+                        <circle fill="none" stroke="#211A44" stroke-width="6" stroke-miterlimit="15" stroke-dasharray="14.2472,14.2472" cx="50" cy="50" r="47" >
+                        <animateTransform 
+                            attributeName="transform" 
+                            attributeType="XML" 
+                            type="rotate"
+                            dur="5s" 
+                            from="0 50 50"
+                            to="360 50 50" 
+                            repeatCount="indefinite" />
+                    </circle>
+                    <circle fill="none" stroke="#211A44" stroke-width="1" stroke-miterlimit="10" stroke-dasharray="10,10" cx="50" cy="50" r="39">
+                        <animateTransform 
+                            attributeName="transform" 
+                            attributeType="XML" 
+                            type="rotate"
+                            dur="5s" 
+                            from="0 50 50"
+                            to="-360 50 50" 
+                            repeatCount="indefinite" />
+                    </circle>
+                    <g fill="#211A44">
+                    <rect x="30" y="35" width="5" height="30">
+                        <animateTransform 
+                        attributeName="transform" 
+                        dur="1s" 
+                        type="translate" 
+                        values="0 5 ; 0 -5; 0 5" 
+                        repeatCount="indefinite" 
+                        begin="0.1"/>
+                    </rect>
+                    <rect x="40" y="35" width="5" height="30" >
+                        <animateTransform 
+                        attributeName="transform" 
+                        dur="1s" 
+                        type="translate" 
+                        values="0 5 ; 0 -5; 0 5" 
+                        repeatCount="indefinite" 
+                        begin="0.2"/>
+                    </rect>
+                    <rect x="50" y="35" width="5" height="30" >
+                        <animateTransform 
+                        attributeName="transform" 
+                        dur="1s" 
+                        type="translate" 
+                        values="0 5 ; 0 -5; 0 5" 
+                        repeatCount="indefinite" 
+                        begin="0.3"/>
+                    </rect>
+                    <rect x="60" y="35" width="5" height="30" >
+                        <animateTransform 
+                        attributeName="transform" 
+                        dur="1s" 
+                        type="translate" 
+                        values="0 5 ; 0 -5; 0 5"  
+                        repeatCount="indefinite" 
+                        begin="0.4"/>
+                    </rect>
+                    <rect x="70" y="35" width="5" height="30" >
+                        <animateTransform 
+                        attributeName="transform" 
+                        dur="1s" 
+                        type="translate" 
+                        values="0 5 ; 0 -5; 0 5" 
+                        repeatCount="indefinite" 
+                        begin="0.5"/>
+                    </rect>
+                    </g>
+                    </svg>
+
+                    <p class="text-gray-600">Scanning... Please wait.</p>
+                </div>
+                `;
+
+
+                fetch('/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        directory,
+                        minSize,
+                        followSymlinks
+                    }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            showError(data.error);
+                            output.innerHTML = `<p class="text-red-500">Error: ${data.error}</p>`;
+                        } else {
+                            displayResults(data.results);
+                        }
+                    })
+                    .catch(error => {
+                        showError('An error occurred while scanning: ' + error.message);
+                        output.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                    });
+            });
+
+            function displayResults(results) {
+                output.innerHTML = '';
+                if (!results || results.length === 0) {
+                    output.innerHTML = `
+                    <div class="flex items-start justify-start h-screen">
+                        <p class="text-gray-600">No duplicates found.</p>
+                    </div>
+                    `;
+                    return;
+                }
+
+                results.forEach((group, groupIndex) => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'mb-6 p-4 bg-gray-50 rounded-lg';
+                    groupDiv.innerHTML = `
+                        <h3 class="font-semibold text-gray-800 mb-2">Duplicate Group ${groupIndex + 1}:</h3>
+                        <ul class="space-y-2">
+                            ${group.map(file => `
+                                <li class="flex justify-between items-center bg-white p-2 rounded">
+                                    <span class="truncate flex-1 mr-4">${file}</span>
+                                    <button class="deleteBtn bg-red-500 text-white py-1 px-3 rounded text-sm hover:bg-red-600 transition-colors" data-file="${file}">Delete</button>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+                    output.appendChild(groupDiv);
+                });
+
+                // Add click handlers for delete buttons
+                document.querySelectorAll('.deleteBtn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const file = e.target.getAttribute('data-file');
+                        showDeleteConfirmation(file);
+                    });
+                });
+            }
+
+            function showDeleteConfirmation(file) {
+                document.getElementById('deleteMessage').textContent = `Are you sure you want to delete "${file}"?`;
+                deleteDialog.classList.remove('hidden');
+
+                document.getElementById('confirmDelete').onclick = () => {
+                    deleteFile(file);
+                    deleteDialog.classList.add('hidden');
+                };
+
+                document.getElementById('cancelDelete').onclick = () => {
+                    deleteDialog.classList.add('hidden');
+                };
+            }
+
+            function deleteFile(file) {
+                fetch('/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ file }),
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            showError(data.error);
+                        } else {
+                            output.innerHTML += `<p class="text-green-500">Deleted: ${file}</p>`;
+                            scanBtn.click();
+                        }
+                    })
+                    .catch(error => {
+                        showError('An error occurred while deleting the file: ' + error.message);
+                    });
+            }
+
+            function showError(message) {
+                document.getElementById('errorMessage').textContent = message;
+                errorDialog.classList.remove('hidden');
+            }
+
+            function showInfo(message) {
+                document.getElementById('infoMessage').innerHTML = message;
+                infoDialog.classList.remove('hidden');
+            }
+
+            document.getElementById('closeError').onclick = () => {
+                errorDialog.classList.add('hidden');
+            };
+
+            document.getElementById('closeInfo').onclick = () => {
+                infoDialog.classList.add('hidden');
+            };
+        });
+    </script>
+</body>
+
+</html>

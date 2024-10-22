@@ -11,14 +11,21 @@ import (
 
 var minSize int64
 var followSymlinks bool
+var webMode bool
 
 func init() {
 	flag.Int64Var(&minSize, "minsize", 0, "Minimum file size to consider (in bytes)")
 	flag.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks when scanning")
+	flag.BoolVar(&webMode, "web", false, "Launch web interface")
 }
 
 func main() {
 	flag.Parse()
+
+	if webMode {
+		launchWebApp()
+		return
+	}
 
 	args := flag.Args()
 	if len(args) < 1 {
