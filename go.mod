@@ -1,6 +1,6 @@
 module duplicate-file-finder
 
-go 1.23.1
+go 1.23.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7 // indirect
