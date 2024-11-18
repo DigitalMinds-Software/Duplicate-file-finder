@@ -37,9 +37,9 @@ func launchWebApp() {
 	http.HandleFunc("/scan", handleScan)
 	http.HandleFunc("/delete", handleDelete)
 
-	fmt.Println("Web app launched. Open http://localhost:8080 in your browser.")
+	fmt.Println("Web app launched. Open http://localhost:8081 in your browser.")
 	LogInfo("Web server started on port 8080")
-	LogFatal(http.ListenAndServe(":8080", nil))
+	LogFatal(http.ListenAndServe(":8081", nil))
 }
 
 func handleWebApp(w http.ResponseWriter, r *http.Request) {
