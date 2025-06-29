@@ -1,0 +1,69 @@
+{
+  "name": "duplicate-file-finder",
+  "version": "1.0.0",
+  "description": "A smart tool that can scan a directory to identify and remove duplicate files",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "electron-dev": "electron . --dev",
+    "build": "electron-builder",
+    "build-go": "go build -o bin/duplicate-file-finder.exe .",
+    "dist": "npm run build-go && electron-builder",
+    "dist-portable": "npm run build-go && electron-builder --win portable",
+    "dist-dir": "npm run build-go && electron-builder --dir",
+    "start": "npm run build-go && electron .",
+    "dev": "npm run build-go && npm run electron-dev",
+    "test": "npm run build-go && bin\\duplicate-file-finder.exe --json test",
+    "clean": "rmdir /s /q dist node_modules 2>nul || true"
+  },
+  "keywords": [
+    "duplicate",
+    "files",
+    "finder",
+    "desktop",
+    "electron"
+  ],
+  "author": "Ivan APEDO",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "build": {
+    "appId": "com.example.dupeFinder",
+    "productName": "DupeFinder",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "desktop/**/*",
+      "bin/**/*",
+      "static/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/",
+        "to": "bin/"
+      }
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "static/favicon.png"
+    },
+    "mac": {
+      "target": "dir",
+      "icon": "static/favicon.png"
+    },
+    "linux": {
+      "target": "dir",
+      "icon": "static/favicon.png"
+    },
+    "compression": "store",
+    "beforeBuild": null,
+    "beforePack": null
+  }
+}
